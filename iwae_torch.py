@@ -29,20 +29,26 @@ class VAE(nn.Module):
         self.decoder = nn.Sequential(nn.Linear(LATENT_DIM, HIDDEN_DIM), nn.ReLU(), nn.Linear(HIDDEN_DIM, HIDDEN_DIM), nn.ReLU(), nn.Linear(HIDDEN_DIM, MNIST_SIZE**2), nn.Sigmoid())
         return
 
-    def compute_loss(self, x, k=None):
-        if not k:
-            k = self.k
-        [x_tilde, z, mu_z, log_var_z] = self.forward(x, k)
-        # upsample x
-        x_s = x.unsqueeze(1).repeat(1, k, 1, 1, 1)
-        # compute negative log-likelihood
-        NLL = -dists.Bernoulli(x_tilde).log_prob(x_s).sum(axis=(2, 3, 4)).mean()
-        # copmute kl divergence
-        KL_Div = -0.5 * (1 + log_var_z - mu_z.pow(2) - log_var_z.exp()).sum(1).mean()
-        # compute loss
-        loss = NLL + KL_Div
-        return loss
-
+    def compute_loss(self, x, k=None, mode = "standard"):
+        if mode == "standard":
+            if not k:
+                k = self.k
+            [x_tilde, z, mu_z, log_var_z] = self.forward(x, k)
+            # upsample x
+            x_s = x.unsqueeze(1).repeat(1, k, 1, 1, 1)
+            # compute negative log-likelihood
+            NLL = -dists.Bernoulli(x_tilde).log_prob(x_s).sum(axis=(2, 3, 4)).mean()
+            # copmute kl divergence
+            KL_Div = -0.5 * (1 + log_var_z - mu_z.pow(2) - log_var_z.exp()).sum(1).mean()
+            # compute loss
+            loss = NLL + KL_Div
+            return loss
+        elif mode == "iwae":
+            """computes the IWAE loss, which is the negative ELBO with importance
+            weights computed by the IWAE method, used for second stage testing
+            """
+            return self.compute_marginal_log_likelihood(x, k)[0]
+    
     def forward(self, x, k=None):
         """feed image (x) through VAE
 
